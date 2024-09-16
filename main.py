@@ -1,4 +1,6 @@
 import heapq
+import tkinter as tk
+import time
 
 # Definición del mapa del juego
 mapa = [
@@ -96,14 +98,52 @@ def a_estrella(inicio, objetivo, mapa):
 
     return None
 
-def main():
-    inicio_pacman = (1, 1)
-    objetivo_comida = (2, 2)
-    camino = a_estrella(inicio_pacman, objetivo_comida, mapa)
-    if camino:
-        print("Camino encontrado:", camino)
-    else:
-        print("No hay camino disponible")
+class PacmanGame(tk.Tk):
+    def __init__(self, mapa):
+        super().__init__()
+        self.title("Pac-Man")
+        self.mapa = mapa
+        self.pacman_pos = [1, 1]
+        self.comida_pos = [2, 2]
+        self.cell_size = 20
+        self.canvas = tk.Canvas(self, width=len(mapa[0]) * self.cell_size, height=len(mapa) * self.cell_size)
+        self.canvas.pack()
+        self.bind("<KeyPress>", self.on_key_press)
+        self.update_canvas()
+
+    def update_canvas(self):
+        self.canvas.delete("all")
+        for x in range(len(self.mapa)):
+            for y in range(len(self.mapa[0])):
+                color = "white"
+                if (x, y) == tuple(self.pacman_pos):
+                    color = "yellow"
+                elif (x, y) == tuple(self.comida_pos):
+                    color = "red"
+                elif self.mapa[x][y] == 1:
+                    color = "black"
+                self.canvas.create_rectangle(y * self.cell_size, x * self.cell_size, (y + 1) * self.cell_size, (x + 1) * self.cell_size, fill=color)
+        self.update()
+
+    def on_key_press(self, event):
+        movimiento = event.keysym.upper()
+        if movimiento == 'W' and self.pacman_pos[0] > 0 and self.mapa[self.pacman_pos[0] - 1][self.pacman_pos[1]] == 0:
+            self.pacman_pos[0] -= 1
+        elif movimiento == 'S' and self.pacman_pos[0] < len(self.mapa) - 1 and self.mapa[self.pacman_pos[0] + 1][self.pacman_pos[1]] == 0:
+            self.pacman_pos[0] += 1
+        elif movimiento == 'A' and self.pacman_pos[1] > 0 and self.mapa[self.pacman_pos[0]][self.pacman_pos[1] - 1] == 0:
+            self.pacman_pos[1] -= 1
+        elif movimiento == 'D' and self.pacman_pos[1] < len(self.mapa[0]) - 1 and self.mapa[self.pacman_pos[0]][self.pacman_pos[1] + 1] == 0:
+            self.pacman_pos[1] += 1
+        elif movimiento == 'Q':
+            self.quit()
+
+        if self.pacman_pos == self.comida_pos:
+            print("¡Pac-Man ha encontrado la comida!")
+            self.quit()
+
+        self.update_canvas()
 
 if __name__ == "__main__":
-    main()
+    game = PacmanGame(mapa)
+    game.mainloop()
