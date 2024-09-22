@@ -2,7 +2,6 @@ import heapq
 import tkinter as tk
 import time
 
-# Definición del mapa del juego
 mapa = [
     [0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0],
     [0, 1, 1, 0, 1, 1, 1, 0, 1, 0, 1, 1, 1, 0, 1, 1, 0],
@@ -76,8 +75,8 @@ def a_estrella(inicio, objetivo, mapa):
             return camino[::-1]
 
         lista_cerrada.add(nodo_actual)
-        vecinos = get_vecinos(nodo_actual, mapa)
 
+        vecinos = get_vecinos(nodo_actual, mapa)
         for vecino in vecinos:
             if vecino in lista_cerrada:
                 continue
@@ -104,12 +103,18 @@ class PacmanGame(tk.Tk):
         self.title("Pac-Man")
         self.mapa = mapa
         self.pacman_pos = [1, 1]
-        self.comida_pos = [2, 2]
+        self.fantasmas = [
+            {"pos": [7, 7], "color": "red", "tipo": "blinky"},  # Blinky (persigue directamente)
+            {"pos": [7, 8], "color": "pink", "tipo": "pinky"},  # Pinky (adelanta a Pac-Man)
+            {"pos": [7, 9], "color": "blue", "tipo": "inky"}    # Inky (intersecta)
+        ]
+
         self.cell_size = 20
         self.canvas = tk.Canvas(self, width=len(mapa[0]) * self.cell_size, height=len(mapa) * self.cell_size)
         self.canvas.pack()
         self.bind("<KeyPress>", self.on_key_press)
         self.update_canvas()
+        self.after(500, self.mover_fantasmas)
 
     def update_canvas(self):
         self.canvas.delete("all")
@@ -118,11 +123,21 @@ class PacmanGame(tk.Tk):
                 color = "white"
                 if (x, y) == tuple(self.pacman_pos):
                     color = "yellow"
-                elif (x, y) == tuple(self.comida_pos):
-                    color = "red"
                 elif self.mapa[x][y] == 1:
                     color = "black"
-                self.canvas.create_rectangle(y * self.cell_size, x * self.cell_size, (y + 1) * self.cell_size, (x + 1) * self.cell_size, fill=color)
+
+                self.canvas.create_rectangle(
+                    y * self.cell_size, x * self.cell_size,
+                    (y + 1) * self.cell_size, (x + 1) * self.cell_size,
+                    fill=color
+                )
+        for fantasma in self.fantasmas:
+            x, y = fantasma["pos"]
+            self.canvas.create_rectangle(
+                y * self.cell_size, x * self.cell_size,
+                (y + 1) * self.cell_size, (x + 1) * self.cell_size,
+                fill=fantasma["color"]
+            )
         self.update()
 
     def on_key_press(self, event):
@@ -135,14 +150,64 @@ class PacmanGame(tk.Tk):
             self.pacman_pos[1] -= 1
         elif movimiento == 'D' and self.pacman_pos[1] < len(self.mapa[0]) - 1 and self.mapa[self.pacman_pos[0]][self.pacman_pos[1] + 1] == 0:
             self.pacman_pos[1] += 1
-        elif movimiento == 'Q':
-            self.quit()
-
-        if self.pacman_pos == self.comida_pos:
-            print("¡Pac-Man ha encontrado la comida!")
-            self.quit()
-
         self.update_canvas()
+
+    def mover_fantasmas(self):
+        for fantasma in self.fantasmas:
+            if fantasma["tipo"] == "blinky":
+               
+                # Blinky: Sigue el camino directo hacia Pac-Man osea el camino mas corto hacia el
+                camino = a_estrella(tuple(fantasma["pos"]), tuple(self.pacman_pos), self.mapa)
+                if camino and len(camino) > 1:
+                    fantasma["pos"] = list(camino[1])
+
+            elif fantasma["tipo"] == "pinky":
+                # Pinky: Trata de adelantarse 4 casillas en la dirección de Pac-Man tratando de acorralarlo(no lo veo bien ya que se queda quieto pero en si si cumple su funcion) 
+                target_pos = self.predecir_posicion_pacman(4)  # 4 casillas adelante
+                camino = a_estrella(tuple(fantasma["pos"]), tuple(target_pos), self.mapa)
+                if camino and len(camino) > 1:
+                    fantasma["pos"] = list(camino[1])
+
+            elif fantasma["tipo"] == "inky":
+                # Inky: Ataca desde un ángulo basado en la posición de Blinky y Pac-Man, segun el rojo y pacman va a un 3er punto en el mapa
+                # para acorralarlo pero este se queda quieto segun si esta muy lejos igual puede que sea por la forma del mapa o nose
+                blinky_pos = next(f["pos"] for f in self.fantasmas if f["tipo"] == "blinky")
+                target_pos = self.calcular_posicion_inky(blinky_pos)
+                camino = a_estrella(tuple(fantasma["pos"]), tuple(target_pos), self.mapa)
+                if camino and len(camino) > 1:
+                    fantasma["pos"] = list(camino[1])
+
+            # Verificar si el fantasma colisionaron
+            if fantasma["pos"] == self.pacman_pos:
+                self.game_over() 
+                return 
+        self.update_canvas()
+        self.after(500, self.mover_fantasmas)
+
+    def predecir_posicion_pacman(self, distancia):
+        # Predecir la posición futura de Pac-Man según su dirección actual
+        x, y = self.pacman_pos
+        # Aquí puedes agregar lógica para predecir la posición según el movimiento
+        return [x + distancia, y]  # Este es solo un ejemplo básico
+
+    def calcular_posicion_inky(self, blinky_pos):
+        # Inky se mueve en función de la posición de Pac-Man y Blinky
+        pacman_x, pacman_y = self.pacman_pos
+        blinky_x, blinky_y = blinky_pos
+        # Calcular un punto "intermedio" entre Blinky y Pac-Man
+        target_x = pacman_x + (pacman_x - blinky_x)
+        target_y = pacman_y + (pacman_y - blinky_y)
+        return [target_x, target_y]
+
+    def game_over(self):
+        self.canvas.create_text(
+            len(self.mapa[0]) * self.cell_size // 2,
+            len(self.mapa) * self.cell_size // 2,
+            text="Game Over",
+            font=("Arial", 24),
+            fill="red"
+        )
+        self.update() 
 
 if __name__ == "__main__":
     game = PacmanGame(mapa)
